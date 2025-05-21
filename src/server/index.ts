@@ -24,13 +24,14 @@ export interface Server2Client {
 }
 
 const server = createServer(app)
-const io = new Server<Client2Server, Server2Client>(server.listen(3001, () => console.log(server.address())))
+const io = new Server<Client2Server, Server2Client>(server.listen(3000, () => console.log(server.address())))
 
 interface ChunkEventMap {
   chunk: [sender: Socket<Client2Server, Server2Client>, x: string, y: string, data: Uint8ClampedArray]
 }
 
 const emitter = new EventEmitter<ChunkEventMap>
+if (!await fs.exists('paint_chunks')) await fs.mkdir('paint_chunks')
 
 io.on('connection', socket => {
   const range = {
