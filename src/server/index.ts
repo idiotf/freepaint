@@ -24,7 +24,7 @@ export interface Server2Client {
 }
 
 const server = createServer(app)
-const io = new Server<Client2Server, Server2Client>(server.listen(3000, () => console.log(server.address())))
+const io = new Server<Client2Server, Server2Client>(server.listen(4287, () => console.log(server.address())))
 
 interface ChunkEventMap {
   chunk: [sender: Socket<Client2Server, Server2Client>, x: string, y: string, data: Uint8ClampedArray]
@@ -49,7 +49,7 @@ io.on('connection', socket => {
       range.y2 = BigInt(y2)
       for (const key in dirtyChunks) {
         const [ x, y ] = key.split(',').map(BigInt)
-        if (x < range.x1 || range.x2 < x || y < range.y1 || range.y2 < y) continue
+        if (x < range.x1 || range.x2 <= x || y < range.y1 || range.y2 <= y) continue
         socket.emit('chunk', x + '', y + '', dirtyChunks[key as ChunkName])
         delete dirtyChunks[key as ChunkName]
       }
@@ -89,7 +89,7 @@ io.on('connection', socket => {
   function updateChunk(sender: Socket<Client2Server, Server2Client>, strX: string, strY: string, data: Uint8ClampedArray) {
     const x = BigInt(strX), y = BigInt(strY)
     if (sender == socket) return
-    if (x < range.x1 || range.x2 < x || y < range.y1 || range.y2 < y) {
+    if (x < range.x1 || range.x2 <= x || y < range.y1 || range.y2 <= y) {
       dirtyChunks[`${x},${y}`] = data
       return
     }
