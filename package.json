@@ -31,7 +31,7 @@
   },
   "scripts": {
     "start": "bun run src/server/index.ts",
-    "dev": "bun run --watch src/server/index.ts",
+    "dev": "NODE_ENV=development bun run --watch src/server/index.ts",
     "build": "webpack",
     "watch": "webpack --watch"
   }

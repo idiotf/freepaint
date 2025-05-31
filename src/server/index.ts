@@ -24,7 +24,7 @@ export interface Server2Client {
 }
 
 const server = createServer(app)
-const io = new Server<Client2Server, Server2Client>(server.listen(4287, () => console.log(server.address())), {
+const io = new Server<Client2Server, Server2Client>(server.listen(process.env.NODE_ENV == 'development' ? 3001 : 4287, () => console.log(server.address())), {
   maxHttpBufferSize: Number.MAX_VALUE,
 })
 

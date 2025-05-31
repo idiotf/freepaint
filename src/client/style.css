@@ -1,5 +1,12 @@
 @import 'tailwindcss';
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@100..900&display=swap');
 
 html, body, #root {
   height: 100%;
+}
+
+@layer utilities {
+  .pixelated {
+    image-rendering: pixelated;
+  }
 }
