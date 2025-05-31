@@ -24,14 +24,22 @@ export interface Server2Client {
 }
 
 const server = createServer(app)
-const io = new Server<Client2Server, Server2Client>(server.listen(4287, () => console.log(server.address())))
+const io = new Server<Client2Server, Server2Client>(server.listen(4287, () => console.log(server.address())), {
+  maxHttpBufferSize: Number.MAX_VALUE,
+})
 
 interface ChunkEventMap {
   chunk: [sender: Socket<Client2Server, Server2Client>, x: string, y: string, data: Uint8ClampedArray]
 }
 
 const emitter = new EventEmitter<ChunkEventMap>
-if (!await fs.exists('paint_chunks')) await fs.mkdir('paint_chunks')
+
+const chunksDir = 'paint_chunks'
+try {
+  await fs.access(chunksDir)
+} catch {
+  await fs.mkdir(chunksDir)
+}
 
 io.on('connection', socket => {
   const range = {
@@ -73,11 +81,11 @@ io.on('connection', socket => {
         imgData[i + 0] = chunk[i + 0]
         imgData[i + 1] = chunk[i + 1]
         imgData[i + 2] = chunk[i + 2]
-        imgData[i + 3] = chunk[i + 3] * (1 - imgData[i + 3])
+        imgData[i + 3] = chunk[i + 3] * (1 - imgData[i + 3] / 255)
       } else for (let i = 0; i < imgData.length; i += 4) {
-        imgData[i + 0] = (1 - imgData[i + 3]) * chunk[i + 0] + imgData[i + 3] * imgData[i + 0]
-        imgData[i + 1] = (1 - imgData[i + 3]) * chunk[i + 1] + imgData[i + 3] * imgData[i + 1]
-        imgData[i + 2] = (1 - imgData[i + 3]) * chunk[i + 2] + imgData[i + 3] * imgData[i + 2]
+        imgData[i + 0] = (1 - imgData[i + 3] / 255) * chunk[i + 0] + imgData[i + 3] / 255 * imgData[i + 0]
+        imgData[i + 1] = (1 - imgData[i + 3] / 255) * chunk[i + 1] + imgData[i + 3] / 255 * imgData[i + 1]
+        imgData[i + 2] = (1 - imgData[i + 3] / 255) * chunk[i + 2] + imgData[i + 3] / 255 * imgData[i + 2]
         imgData[i + 3] = (1 - (1 - chunk[i + 3] / 255) * (1 - imgData[i + 3] / 255)) * 255
       }
       return imgData
@@ -109,7 +117,7 @@ async function readChunk<X extends bigint, Y extends bigint>(x: X, y: Y) {
   if (cachedChunk) return cachedChunk
 
   try {
-    return await (chunks[name] = (async () => new Uint8ClampedArray(await fs.readFile(path.join('paint_chunks', name))))())
+    return await (chunks[name] = (async () => new Uint8ClampedArray(await fs.readFile(path.join(chunksDir, name))))())
   } catch {
     return chunks[name] = (async () => new Uint8ClampedArray(chunkByteLength))()
   }
@@ -119,5 +127,5 @@ async function writeChunk<X extends bigint, Y extends bigint>(x: X, y: Y, data: 
   const name: ChunkName<X, Y> = `${x},${y}`
   chunks[name] = (async () => data)()
 
-  await fs.writeFile(path.join('paint_chunks', name), await chunks[name])
+  await fs.writeFile(path.join(chunksDir, name), await chunks[name])
 }

@@ -1,0 +1,7 @@
+{
+  "short_name": "Freepaint",
+  "name": "Freepaint",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#fff"
+}

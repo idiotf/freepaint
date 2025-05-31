@@ -1,8 +1,9 @@
 import path from 'path'
 import type { Configuration } from 'webpack'
+import CopyPlugin from 'copy-webpack-plugin'
 import HtmlWebpackPlugin from 'html-webpack-plugin'
 
-const config: Configuration = {
+const config: Configuration | Configuration[] = {
   mode: 'production',
   entry: './src/client/index.tsx',
   resolve: {
@@ -29,7 +30,15 @@ const config: Configuration = {
       }
     ],
   },
-  plugins: [new HtmlWebpackPlugin({ title: 'Freepaint' })],
+  plugins: [
+    new HtmlWebpackPlugin({ title: 'Freepaint' }),
+    new CopyPlugin({
+      patterns: [
+        { from: 'src/favicon.ico', to: 'favicon.ico' },
+        { from: 'src/manifest.json', to: 'manifest.json' },
+      ],
+    }),
+  ],
 }
 
 export default config

@@ -279,14 +279,14 @@ export default function App() {
       chunks[name] = (async () => {
         let chunk: Uint8ClampedArray = new Uint8ClampedArray(chunkByteLength)
         chunks[name]?.then(v => chunk = v)
-        await new Promise(queueMicrotask)
+        await new Promise<void>(queueMicrotask)
         chunkContext.putImageData(new ImageData(chunk, CHUNK_SIZE), 0, 0)
 
         if (isErase) chunkContext.globalCompositeOperation = 'destination-out'
         putImageContext.putImageData(new ImageData(data, CHUNK_SIZE), 0, 0)
         chunkContext.drawImage(putImageCanvas, 0, 0)
         chunkContext.globalCompositeOperation = 'source-over'
-        return chunkContext.getImageData(0, 0, chunkCanvas.width, chunkCanvas.height).data
+        return chunkContext.getImageData(0, 0, CHUNK_SIZE, CHUNK_SIZE).data
       })()
       delete tempChunks[name]
 
@@ -310,36 +310,22 @@ export default function App() {
 
       const promises: Promise<void>[] = []
       for (let chunkY = chunkY1; chunkY < chunkY2; ++chunkY) for (let chunkX = chunkX1; chunkX < chunkX2; ++chunkX) promises.push((async () => {
-        chunkContext.clearRect(0, 0, chunkCanvas.width, chunkCanvas.height)
+        chunkContext.clearRect(0, 0, CHUNK_SIZE, CHUNK_SIZE)
         chunkContext.beginPath()
         chunkContext.moveTo(x1 - chunkX * CHUNK_SIZE, y1 - chunkY * CHUNK_SIZE)
         chunkContext.lineTo(x2 - chunkX * CHUNK_SIZE, y2 - chunkY * CHUNK_SIZE)
         chunkContext.stroke()
 
-        const imgData = chunkContext.getImageData(0, 0, chunkCanvas.width, chunkCanvas.height)
+        const imgData = chunkContext.getImageData(0, 0, CHUNK_SIZE, CHUNK_SIZE)
         const { data } = imgData
         for (let i = 3; i < data.length; i += 4) data[i] = data[i] < 96 ? 0 : 255
-
-        // const chunk = await readChunk(BigInt(chunkX), BigInt(chunkY))
-
-        // putImageContext.putImageData(new ImageData(chunk, CHUNK_SIZE), 0, 0)
-        // chunkContext.clearRect(0, 0, chunkCanvas.width, chunkCanvas.height)
-        // chunkContext.drawImage(putImageCanvas, 0, 0)
-
-        // if (isErase) chunkContext.globalCompositeOperation = 'destination-out'
         chunkContext.putImageData(imgData, 0, 0)
-        // chunkContext.drawImage(putImageCanvas, 0, 0)
-        // chunkContext.globalCompositeOperation = 'source-over'
-
-        // context.clearRect(chunkX * CHUNK_SIZE, chunkY * CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE)
-        // context.drawImage(chunkCanvas, chunkX * CHUNK_SIZE, chunkY * CHUNK_SIZE)
 
         if (isErase) context.globalCompositeOperation = 'destination-out'
-        // context.clearRect(chunkX * CHUNK_SIZE, chunkY * CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE)
         context.drawImage(chunkCanvas, chunkX * CHUNK_SIZE, chunkY * CHUNK_SIZE)
         context.globalCompositeOperation = 'source-over'
 
-        await writeChunk(BigInt(chunkX), BigInt(chunkY), chunkContext.getImageData(0, 0, chunkCanvas.width, chunkCanvas.height).data, isErase)
+        await writeChunk(BigInt(chunkX), BigInt(chunkY), data, isErase)
       })())
       return Promise.all(promises)
     }
