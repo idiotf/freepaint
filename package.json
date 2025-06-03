@@ -2,19 +2,19 @@
   "name": "freepaint",
   "type": "module",
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.7",
+    "@tailwindcss/postcss": "^4.1.8",
     "@types/bun": "latest",
     "@types/express": "^5.0.2",
-    "@types/node": "^22.15.21",
-    "@types/react": "^19.1.4",
+    "@types/node": "^22.15.29",
+    "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.5",
     "copy-webpack-plugin": "^13.0.0",
     "css-loader": "^7.1.2",
     "html-webpack-plugin": "^5.6.3",
-    "postcss": "^8.5.3",
+    "postcss": "^8.5.4",
     "postcss-loader": "^8.1.1",
     "style-loader": "^4.0.0",
-    "tailwindcss": "^4.1.7",
+    "tailwindcss": "^4.1.8",
     "ts-loader": "^9.5.2",
     "webpack": "^5.99.9",
     "webpack-cli": "^6.0.1"
@@ -33,6 +33,6 @@
     "start": "bun run src/server/index.ts",
     "dev": "NODE_ENV=development bun run --watch src/server/index.ts",
     "build": "webpack",
-    "watch": "webpack --watch"
+    "watch": "NODE_ENV=development webpack --watch"
   }
 }

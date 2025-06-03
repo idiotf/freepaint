@@ -17,6 +17,8 @@
       "@/*": ["./*"],
     },
 
+    "sourceMap": true,
+
     // Best practices
     "strict": true,
     "skipLibCheck": true,

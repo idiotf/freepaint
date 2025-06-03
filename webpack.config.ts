@@ -4,8 +4,9 @@ import CopyPlugin from 'copy-webpack-plugin'
 import HtmlWebpackPlugin from 'html-webpack-plugin'
 
 const config: Configuration | Configuration[] = {
-  mode: 'production',
+  mode: process.env.NODE_ENV as 'production' | 'development' | undefined || 'production',
   entry: './src/client/index.tsx',
+  devtool: process.env.NODE_ENV == 'development' ? 'inline-source-map' : void 0,
   resolve: {
     extensions: ['.css', '.js', '.ts', '.jsx', '.tsx'],
   },

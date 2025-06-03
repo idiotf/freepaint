@@ -26,13 +26,13 @@ export interface Server2Client {
 const server = createServer(app)
 const io = new Server<Client2Server, Server2Client>(server.listen(process.env.NODE_ENV == 'development' ? 3001 : 4287, () => console.log(server.address())), {
   maxHttpBufferSize: Number.MAX_VALUE,
+  pingInterval: 3000,
+  pingTimeout: 3000,
 })
 
-interface ChunkEventMap {
-  chunk: [sender: Socket<Client2Server, Server2Client>, x: string, y: string, data: Uint8ClampedArray]
-}
+export type ChunkName<X extends bigint = bigint, Y extends bigint = bigint> = `${X},${Y}`
 
-const emitter = new EventEmitter<ChunkEventMap>
+const emitter = new EventEmitter
 
 const chunksDir = 'paint_chunks'
 try {
@@ -91,7 +91,7 @@ io.on('connection', socket => {
       return imgData
     })())
     emitter.emit('chunk', socket, x, y, data)
-    await writeChunk(BigInt(x), BigInt(y), data)
+    writeChunk(BigInt(x), BigInt(y), data)
   })
 
   function updateChunk(sender: Socket<Client2Server, Server2Client>, strX: string, strY: string, data: Uint8ClampedArray) {
@@ -107,25 +107,33 @@ io.on('connection', socket => {
   socket.on('disconnecting', () => emitter.off('chunk', updateChunk))
 })
 
-export type ChunkName<X extends bigint = bigint, Y extends bigint = bigint> = `${X},${Y}`
-
 const chunks: Record<ChunkName, Promise<Uint8ClampedArray>> = Object.create(null)
 
-async function readChunk<X extends bigint, Y extends bigint>(x: X, y: Y) {
+const readChunk = <X extends bigint, Y extends bigint>(x: X, y: Y) => chunks[`${x},${y}`] = chunks[`${x},${y}`] || new Promise<Uint8ClampedArray>(resolve => {
   const name: ChunkName<X, Y> = `${x},${y}`
-  const cachedChunk = await chunks[name]
-  if (cachedChunk) return cachedChunk
+  emitter.once(name, resolve)
 
-  try {
-    return await (chunks[name] = (async () => new Uint8ClampedArray(await fs.readFile(path.join(chunksDir, name))))())
-  } catch {
-    return chunks[name] = (async () => new Uint8ClampedArray(chunkByteLength))()
+  const returnChunk = (data: Uint8ClampedArray) => {
+    emitter.off(name, resolve)
+    resolve(data)
   }
-}
+  chunks[name]?.then(returnChunk) || fs.readFile(path.join(chunksDir, name)).catch(() => new Uint8ClampedArray(chunkByteLength)).then(v => returnChunk(new Uint8ClampedArray(v)))
+})
 
-async function writeChunk<X extends bigint, Y extends bigint>(x: X, y: Y, data: Uint8ClampedArray) {
+const writeQueue: Record<ChunkName, Uint8ClampedArray> = {}
+
+const writeChunk = <X extends bigint, Y extends bigint>(x: X, y: Y, data: Uint8ClampedArray) => {
+  if (data.length != chunkByteLength) throw new RangeError(`Chunk size is not matching (Expected ${chunkByteLength}, Received ${data.length})`)
+
   const name: ChunkName<X, Y> = `${x},${y}`
-  chunks[name] = (async () => data)()
-
-  await fs.writeFile(path.join(chunksDir, name), await chunks[name])
+  chunks[name] = Promise.resolve(writeQueue[name] = data)
+  emitter.emit(name, data)
 }
+
+setInterval(() => {
+  for (const name in writeQueue) {
+    const data = writeQueue[name as ChunkName]
+    delete writeQueue[name as ChunkName]
+    fs.writeFile(path.join(chunksDir, name), data)
+  }
+}, 1000)
