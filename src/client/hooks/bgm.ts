@@ -1,6 +1,6 @@
 import { createRef, useEffect } from 'react'
 
-export default function useBgm(src: string, enabled = true) {
+export function useBgm(src: string, enabled = true) {
   const audioRef = createRef<HTMLAudioElement>()
 
   useEffect(() => {

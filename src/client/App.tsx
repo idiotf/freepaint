@@ -1,7 +1,7 @@
 /// <reference path='../bgm.d.ts' />
 
 import { useEffect, useState } from 'react'
-import useBgm from './hooks/bgm'
+import { useBgm } from './hooks/bgm'
 import { Canvas, DrawMode } from './Canvas'
 import bgmURL from '../media/bgm.mp3'
 import './style'
