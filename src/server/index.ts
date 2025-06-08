@@ -10,6 +10,7 @@ const app = express()
 app.disable('x-powered-by')
 
 app.use(express.static('public'))
+app.use(express.static('dist'))
 app.use((_req, res) => res.redirect('/'))
 
 export interface Client2Server {
@@ -28,6 +29,7 @@ const io = new Server<Client2Server, Server2Client>(server.listen(process.env.NO
   maxHttpBufferSize: Number.MAX_VALUE,
   pingInterval: 3000,
   pingTimeout: 3000,
+  transports: ['polling', 'websocket', 'webtransport'],
 })
 
 export type ChunkName<X extends bigint = bigint, Y extends bigint = bigint> = `${X},${Y}`

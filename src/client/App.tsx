@@ -11,7 +11,7 @@ export default function App() {
   const [ lineWidth, setLineWidth ] = useState(1)
   const [ lineColor, setLineColor ] = useState('#000000')
 
-  useBgm(bgmURL)
+  useBgm(bgmURL, process.env.NODE_ENV != 'development')
 
   useEffect(() => {
     function handler(event: KeyboardEvent) {
@@ -31,7 +31,7 @@ export default function App() {
 
   return <>
     <Canvas drawMode={drawMode} lineWidth={lineWidth} lineColor={lineColor} className='w-full h-full pixelated' />
-    <div className='fixed left-0 top-0 bottom-0 w-64 bg-yellow-200 p-6 select-none font-[Noto_Sans_KR]'>
+    <div className='fixed left-0 top-0 bottom-0 w-64 bg-yellow-200 p-6 select-none'>
       <h1 className='text-xl font-semibold'>Freepaint</h1>
       <input type='range' value={lineWidth} min={1} max={100} onChange={({ target: { value } }) => setLineWidth(+value)} />
       <input type='color' value={lineColor} onChange={({ target: { value } }) => setLineColor(value)} />

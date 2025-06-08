@@ -37,7 +37,7 @@ export function Canvas({ drawMode, lineWidth, lineColor, ...params }: React.JSX.
   const camera = useRef({
     x: 0,
     y: 0,
-    zoom: 1,
+    zoom: 16,
   }).current
 
   const range = useRef({
@@ -65,8 +65,12 @@ export function Canvas({ drawMode, lineWidth, lineColor, ...params }: React.JSX.
     return { chunkX1, chunkY1, chunkX2, chunkY2 }
   }
 
-  const socket: Socket<Server2Client, Client2Server> = useSocket((socket: Socket<Server2Client, Client2Server>) => {
-    socket.on('chunk', (strX, strY, data) => {
+  const socket: Socket<Server2Client, Client2Server> = useSocket({
+    transports: ['websocket', 'webtransport'],
+    tryAllTransports: true,
+  })
+  useEffect(() => {
+    const onChunk = (strX: string, strY: string, data: Uint8ClampedArray) => {
       const x = BigInt(strX), y = BigInt(strY)
       const name: ChunkName = `${x},${y}`
       const chunk = new Uint8ClampedArray(data)
@@ -77,13 +81,17 @@ export function Canvas({ drawMode, lineWidth, lineColor, ...params }: React.JSX.
       mainContext.clearRect(posX, posY, CHUNK_SIZE, CHUNK_SIZE)
       mainContext.drawImage(putImageCanvas, posX, posY)
       applyLayer()
-    })
-    socket.on('connect', () => {
+    }
+    socket.on('chunk', onChunk)
+
+    const onConnect = () => {
       setDisconnected(false)
       getRange()
       if (canvasRef.current) render(canvasRef.current)
-    })
-    socket.on('disconnect', () => {
+    }
+    socket.on('connect', onConnect)
+
+    const onDisconnect = () => {
       setDisconnected(true)
       for (const key in chunks) delete chunks[key as ChunkName]
 
@@ -92,7 +100,14 @@ export function Canvas({ drawMode, lineWidth, lineColor, ...params }: React.JSX.
       mainContext.clearRect(0, 0, mainCanvas.width, mainCanvas.height)
       mainContext.restore()
       applyLayer()
-    })
+    }
+    socket.on('disconnect', onDisconnect)
+
+    return () => {
+      socket.off('chunk', onChunk)
+      socket.off('connect', onConnect)
+      socket.off('disconnect', onDisconnect)
+    }
   })
 
   function readChunk<X extends bigint, Y extends bigint>(x: X, y: Y) {
@@ -104,14 +119,12 @@ export function Canvas({ drawMode, lineWidth, lineColor, ...params }: React.JSX.
     }))
 
     const lastModified = lastModifiedTable[name]
-    return (function step(): Promise<{ chunk: Uint8ClampedArray, latest: boolean }> {
-      return (chunks[name] = socket.timeout(1000).emitWithAck('readChunk', x + '', y + '').then(v => new Uint8ClampedArray(v)))
-        .then(chunk => ({
-          chunk,
-          latest: lastModified == lastModifiedTable[name],
-        }))
-        .catch(step)
-    })()
+    return (function step(): Promise<Uint8ClampedArray> {
+      return chunks[name] = socket.timeout(1000).emitWithAck('readChunk', x + '', y + '').then(v => new Uint8ClampedArray(v)).catch(step)
+    })().then(chunk => ({
+      chunk,
+      latest: lastModified == lastModifiedTable[name],
+    }))
   }
 
   async function mergeChunk<X extends bigint, Y extends bigint>(x: X, y: Y, data: Uint8ClampedArray, isErase = false) {
@@ -135,7 +148,12 @@ export function Canvas({ drawMode, lineWidth, lineColor, ...params }: React.JSX.
     const lastModified = lastModifiedTable[name] = performance.now()
     chunks[name] = mergeChunk(x, y, data, isErase)
 
-    const promise = socket.emitWithAck('writeChunk', x + '', y + '', data, isErase).then(v => new Uint8ClampedArray(v))
+    const promise = socket.emitWithAck('writeChunk', x + '', y + '', data, isErase)
+      .then(v => new Uint8ClampedArray(v))
+      .catch(v => {
+        if (v?.message == 'socket has been disconnected') setDisconnected(true)
+        throw v
+      })
     const chunk = await promise
     if (lastModified == lastModifiedTable[name]) {
       lastModifiedTable[name] = performance.now()
@@ -193,7 +211,7 @@ export function Canvas({ drawMode, lineWidth, lineColor, ...params }: React.JSX.
 
     context.strokeStyle = '#fff'
     context.beginPath()
-    context.arc(cursor.x, cursor.y, lineWidth * camera.zoom / 2 + 2, 0, Math.PI * 2)
+    context.arc(cursor.x, cursor.y, lineWidth * camera.zoom / 2 + 1, 0, Math.PI * 2)
     context.stroke()
   }
 
@@ -226,19 +244,21 @@ export function Canvas({ drawMode, lineWidth, lineColor, ...params }: React.JSX.
       mainContext.globalCompositeOperation = 'source-over'
       applyLayer()
 
-      const { chunk, latest } = await writeChunk(chunkX, chunkY, data, isErase)
-      if (!latest) return
+      try {
+        const { chunk, latest } = await writeChunk(chunkX, chunkY, data, isErase)
+        if (!latest) return
 
-      const posX = Number(x) * CHUNK_SIZE, posY = Number(y) * CHUNK_SIZE
-      putImageContext.putImageData(new ImageData(chunk, CHUNK_SIZE), 0, 0)
-      mainContext.clearRect(posX, posY, CHUNK_SIZE, CHUNK_SIZE)
-      mainContext.drawImage(putImageCanvas, posX, posY)
-      applyLayer()
+        console.log(chunkX, chunkY)
+        const posX = Number(x) * CHUNK_SIZE, posY = Number(y) * CHUNK_SIZE
+        putImageContext.putImageData(new ImageData(chunk, CHUNK_SIZE), 0, 0)
+        mainContext.clearRect(posX, posY, CHUNK_SIZE, CHUNK_SIZE)
+        mainContext.drawImage(putImageCanvas, posX, posY)
+        applyLayer()
+      } catch {}
     })())
   }
 
   function leftButtonMove(event: MouseEvent, prevEvent: MouseEvent) {
-    if (unmounted) return
     const canvas = canvasRef.current
     if (!canvas) return
     const { width, height } = canvas
@@ -268,7 +288,8 @@ export function Canvas({ drawMode, lineWidth, lineColor, ...params }: React.JSX.
     }
   }
 
-  function mouseDownHandler(event: React.MouseEvent) {
+  function mouseDownHandler(event: React.MouseEvent<HTMLCanvasElement>) {
+    canvasRef.current = event.currentTarget
     let prevEvent: MouseEvent = event.nativeEvent
 
     function move(event: MouseEvent) {
@@ -287,16 +308,18 @@ export function Canvas({ drawMode, lineWidth, lineColor, ...params }: React.JSX.
     move(event.nativeEvent)
   }
 
-  function mouseMoveHandler(event: React.MouseEvent) {
+  function mouseMoveHandler(event: React.MouseEvent<HTMLCanvasElement>) {
+    canvasRef.current = event.currentTarget
     cursor.x = event.clientX
     cursor.y = event.clientY
     applyLayer()
   }
 
-  let unmounted = false
-  useEffect(() => {
-    return () => void (unmounted = true)
-  })
+  function wheelHandler(event: React.WheelEvent<HTMLCanvasElement>) {
+    canvasRef.current = event.currentTarget
+    camera.zoom = Math.max(1, Math.min(camera.zoom * 2 ** -Math.sign(event.deltaY), 256))
+    render(canvasRef.current)
+  }
 
   useLayoutEffect(applyLayer, [
     [ DrawMode.DRAW, DrawMode.ERASE ].includes(drawMode),
@@ -312,6 +335,7 @@ export function Canvas({ drawMode, lineWidth, lineColor, ...params }: React.JSX.
         render={render}
         onMouseDown={mouseDownHandler}
         onMouseMove={mouseMoveHandler}
+        onWheel={wheelHandler}
         style={{
           cursor: {
             [DrawMode.VIEW]: 'move',
@@ -320,8 +344,12 @@ export function Canvas({ drawMode, lineWidth, lineColor, ...params }: React.JSX.
           }[drawMode],
         }}
       />
-      <div className='absolute inset-0 bg-gray-300/25 flex justify-center items-center' style={{ display: disconnected ? '' : 'none' }}>
-        <Loading className='w-1/2 h-1/2' />
+      <div className='absolute inset-0 bg-gray-300/25 flex flex-col justify-center items-center' style={{ display: disconnected ? '' : 'none' }}>
+        <Loading className='w-1/4 h-1/4' />
+        <p className='my-4 text-center'>
+          서버와의 연결이 끊어졌습니다.<br />
+          재연결 중...
+        </p>
       </div>
     </>
   )

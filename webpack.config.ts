@@ -1,6 +1,5 @@
 import path from 'path'
 import type { Configuration } from 'webpack'
-import CopyPlugin from 'copy-webpack-plugin'
 import HtmlWebpackPlugin from 'html-webpack-plugin'
 
 const config: Configuration | Configuration[] = {
@@ -12,7 +11,7 @@ const config: Configuration | Configuration[] = {
   },
   output: {
     filename: 'index.js',
-    path: path.resolve(import.meta.dirname, 'public'),
+    path: path.resolve(import.meta.dirname, 'dist'),
   },
   module: {
     rules: [
@@ -33,12 +32,6 @@ const config: Configuration | Configuration[] = {
   },
   plugins: [
     new HtmlWebpackPlugin({ title: 'Freepaint' }),
-    new CopyPlugin({
-      patterns: [
-        { from: 'src/favicon.ico', to: 'favicon.ico' },
-        { from: 'src/manifest.json', to: 'manifest.json' },
-      ],
-    }),
   ],
 }
 
