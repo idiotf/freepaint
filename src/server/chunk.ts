@@ -1,10 +1,12 @@
 import path from 'path'
 import fs from 'fs/promises'
-import { chunkByteLength } from '../const'
+// import { chunkByteLength } from '../const'
+
+const chunkByteLength = 16
 
 export type ChunkName = `${bigint},${bigint}`
 
-const chunksDir = process.env.CHUNKS_DIR || 'paint_chunks'
+const chunksDir = process.env.CHUNKS_DIR || 'test/paint_chunks'
 await fs.access(chunksDir).catch(() => fs.mkdir(chunksDir))
 
 const chunks: Record<ChunkName, Promise<Uint8ClampedArray>> = Object.create(null)
@@ -31,27 +33,32 @@ export async function writeChunk(x: bigint, y: bigint, data: Uint8ClampedArray, 
   do {
     promise = readChunk(x, y)
     chunk = await promise
-  } while (chunks[name] == promise)
+  } while (chunks[name] != promise)
 
   return chunks[name] = Promise.resolve(writeQueue[name] = mergeChunk(chunk, data, isErase))
 }
 
-function mergeChunk(chunk: Uint8ClampedArray, data: Uint8ClampedArray, isErase = false) {
-  if (isErase) for (let i = 0; i < data.length; i += 4) {
+function mergeChunk(dst: Uint8ClampedArray, src: Uint8ClampedArray, isErase = false) {
+  for (let i = 0; i < src.length; i += 4) {
     const r = i + 0, g = i + 1, b = i + 2, a = i + 3
-    data[r] = chunk[r]
-    data[g] = chunk[g]
-    data[b] = chunk[b]
-    data[a] = chunk[a] * (255 - data[a]) / 255
-  } else for (let i = 0; i < data.length; i += 4) {
-    const r = i + 0, g = i + 1, b = i + 2, a = i + 3
-    data[r] = (255 - data[a]) * chunk[r] / 255 + data[a] * data[r] / 255
-    data[g] = (255 - data[a]) * chunk[g] / 255 + data[a] * data[g] / 255
-    data[b] = (255 - data[a]) * chunk[b] / 255 + data[a] * data[b] / 255
-    data[a] = 255 - (255 - chunk[a]) * (255 - data[a]) / 255
+
+    if (isErase) {
+      src[r] = dst[r]
+      src[g] = dst[g]
+      src[b] = dst[b]
+      src[a] = dst[a] * (255 - src[a]) / 255
+    } else {
+      const dstAlpha = dst[a] * (255 - src[a]) / 255
+      const alpha = src[a] + dstAlpha
+
+      src[r] = (src[r] * src[a] + dst[r] * dstAlpha) / alpha
+      src[g] = (src[g] * src[a] + dst[g] * dstAlpha) / alpha
+      src[b] = (src[b] * src[a] + dst[b] * dstAlpha) / alpha
+      src[a] = alpha
+    }
   }
 
-  return data
+  return src
 }
 
 setInterval(() => {
