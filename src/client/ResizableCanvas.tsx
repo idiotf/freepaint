@@ -1,8 +1,7 @@
-import { useLayoutEffect, useImperativeHandle, useRef } from 'react'
+import React, { useLayoutEffect, useImperativeHandle, useRef } from 'react'
 
-export default function ResizableCanvas({ render, ref, deps, ...props }: React.JSX.IntrinsicElements['canvas'] & {
+export default function ResizableCanvas({ render, ref, ...props }: React.JSX.IntrinsicElements['canvas'] & {
   render(canvas: HTMLCanvasElement): void
-  deps?: React.DependencyList
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -30,7 +29,7 @@ export default function ResizableCanvas({ render, ref, deps, ...props }: React.J
     const canvas = canvasRef.current
     if (canvas) observer.observe(canvas, { box: 'device-pixel-content-box' })
     return () => observer.disconnect()
-  }, deps)
+  }, [ render ])
 
   useImperativeHandle(ref, () => canvasRef.current!)
 

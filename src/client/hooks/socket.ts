@@ -7,6 +7,7 @@ export function useSocket(opts?: Partial<ManagerOptions & SocketOptions>) {
   useEffect(() => {
     ++mountCount.current
     return () => queueMicrotask(() => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       if (!--mountCount.current) ref.current?.disconnect()
     })
   }, [])

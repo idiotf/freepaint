@@ -10,19 +10,14 @@
 
     // Bundler mode
     "moduleResolution": "bundler",
-    // "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
-    // "noEmit": true,
-    "paths": {
-      "@/*": ["./*"],
-    },
-
     "sourceMap": true,
 
     // Best practices
     "strict": true,
     "skipLibCheck": true,
     "noFallthroughCasesInSwitch": true,
+    "strictBindCallApply": true,
 
     // Some stricter flags (disabled by default)
     "noUnusedLocals": false,

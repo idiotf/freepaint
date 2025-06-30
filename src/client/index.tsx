@@ -1,4 +1,4 @@
-import { StrictMode } from 'react'
+import React, { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 
@@ -8,6 +8,4 @@ createRoot(document.body.appendChild(root)).render(process.env.NODE_ENV == 'deve
   <StrictMode>
     <App />
   </StrictMode>
-) : (
-  <App />
-))
+) : <App />)

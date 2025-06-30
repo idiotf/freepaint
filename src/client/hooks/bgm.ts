@@ -1,12 +1,12 @@
 import { useRef, useEffect } from 'react'
 
 export function useBgm(src: string, enabled = true) {
-  const audioRef = useRef<HTMLAudioElement>(null)
+  const ref = useRef<HTMLAudioElement>(null)
 
   useEffect(() => {
     if (!enabled) return
 
-    const audio = audioRef.current = audioRef.current || new Audio
+    const audio = ref.current = ref.current || new Audio
     audio.src = src
     audio.autoplay = true
     audio.loop = true
@@ -22,4 +22,7 @@ export function useBgm(src: string, enabled = true) {
       removeEventListener('click', playOnClick)
     }
   }, [ src, enabled ])
+
+  if (!ref.current) ref.current = new Audio
+  return ref.current
 }

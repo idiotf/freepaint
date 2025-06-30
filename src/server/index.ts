@@ -1,10 +1,10 @@
-import path from 'path'
-import fs from 'fs/promises'
 import express from 'express'
 import EventEmitter from 'events'
 import { createServer } from 'http'
-import { Server, type Socket } from 'socket.io'
+import { createInterface } from 'readline'
 import { chunkByteLength } from '../const'
+import { Server, type Socket } from 'socket.io'
+import { readChunk, writeChunk, type ChunkName } from './chunk'
 
 const app = express()
 app.disable('x-powered-by')
@@ -24,24 +24,22 @@ export interface Server2Client {
   chunk(x: string, y: string, data: Uint8ClampedArray): void
 }
 
-const server = createServer(app)
-const io = new Server<Client2Server, Server2Client>(server.listen(process.env.NODE_ENV == 'development' ? 3001 : 4287, () => console.log(server.address())), {
+const DEVELOPMENT_PORT = 3001
+const PRODUCTION_PORT = 4287
+
+const port = process.env.PORT || process.env.NODE_ENV == 'development' ? DEVELOPMENT_PORT : PRODUCTION_PORT
+const server = createServer(app).listen(port, () => console.log(server.address()))
+const io = new Server<Client2Server, Server2Client>(server, {
   maxHttpBufferSize: Number.MAX_VALUE,
   pingInterval: 3000,
   pingTimeout: 3000,
-  transports: ['polling', 'websocket', 'webtransport'],
 })
 
-export type ChunkName<X extends bigint = bigint, Y extends bigint = bigint> = `${X},${Y}`
-
-const emitter = new EventEmitter
-
-const chunksDir = 'paint_chunks'
-try {
-  await fs.access(chunksDir)
-} catch {
-  await fs.mkdir(chunksDir)
+interface ChunkEventMap {
+  chunk: [sender: Socket, x: bigint, y: bigint, data: Uint8ClampedArray]
 }
+
+const emitter = new EventEmitter<ChunkEventMap>
 
 io.on('connection', socket => {
   const range = {
@@ -51,19 +49,23 @@ io.on('connection', socket => {
     y2: 0n,
   }
   const dirtyChunks: Record<ChunkName, Uint8ClampedArray> = Object.create(null)
+
   socket.on('setRange', (x1, y1, x2, y2) => {
     try {
       range.x1 = BigInt(x1)
       range.y1 = BigInt(y1)
       range.x2 = BigInt(x2)
       range.y2 = BigInt(y2)
-      for (const key in dirtyChunks) {
-        const [ x, y ] = key.split(',').map(BigInt)
-        if (x < range.x1 || range.x2 <= x || y < range.y1 || range.y2 <= y) continue
-        socket.emit('chunk', x + '', y + '', dirtyChunks[key as ChunkName])
-        delete dirtyChunks[key as ChunkName]
+
+      for (let y = range.y1; y < range.y2; ++y) for (let x = range.x1; x < range.x2; ++x) {
+        const name: ChunkName = `${x},${y}`
+        const chunk = dirtyChunks[name]
+        if (!chunk || x < range.x1 || range.x2 <= x || y < range.y1 || range.y2 <= y) continue
+
+        socket.emit('chunk', x + '', y + '', chunk)
+        delete dirtyChunks[name]
       }
-    } catch {}
+    } catch { /* empty */ }
   })
 
   socket.on('readChunk', async (x, y, callback) => {
@@ -73,69 +75,35 @@ io.on('connection', socket => {
       callback(new Uint8ClampedArray(chunkByteLength))
     }
   })
-  socket.on('writeChunk', async (x, y, data, isErase, callback) => {
-    if (data.length != chunkByteLength) throw new RangeError(`Chunk size is not matching (Expected ${chunkByteLength}, Received ${data.length})`)
 
-    callback(data = await (async () => {
-      const chunk = await readChunk(BigInt(x), BigInt(y))
-      const imgData = new Uint8ClampedArray(data)
-      if (isErase) for (let i = 0; i < imgData.length; i += 4) {
-        imgData[i + 0] = chunk[i + 0]
-        imgData[i + 1] = chunk[i + 1]
-        imgData[i + 2] = chunk[i + 2]
-        imgData[i + 3] = chunk[i + 3] * (1 - imgData[i + 3] / 255)
-      } else for (let i = 0; i < imgData.length; i += 4) {
-        imgData[i + 0] = (1 - imgData[i + 3] / 255) * chunk[i + 0] + imgData[i + 3] / 255 * imgData[i + 0]
-        imgData[i + 1] = (1 - imgData[i + 3] / 255) * chunk[i + 1] + imgData[i + 3] / 255 * imgData[i + 1]
-        imgData[i + 2] = (1 - imgData[i + 3] / 255) * chunk[i + 2] + imgData[i + 3] / 255 * imgData[i + 2]
-        imgData[i + 3] = (1 - (1 - chunk[i + 3] / 255) * (1 - imgData[i + 3] / 255)) * 255
-      }
-      return imgData
-    })())
-    emitter.emit('chunk', socket, x, y, data)
-    writeChunk(BigInt(x), BigInt(y), data)
+  socket.on('writeChunk', async (strX, strY, data, isErase, callback) => {
+    const x = BigInt(strX), y = BigInt(strY)
+    const chunk = await writeChunk(x, y, data, isErase)
+    emitter.emit('chunk', socket, x, y, chunk)
+    callback(chunk)
   })
 
-  function updateChunk(sender: Socket<Client2Server, Server2Client>, strX: string, strY: string, data: Uint8ClampedArray) {
-    const x = BigInt(strX), y = BigInt(strY)
+  function updateChunk(sender: Socket, x: bigint, y: bigint, data: Uint8ClampedArray) {
     if (sender == socket) return
     if (x < range.x1 || range.x2 <= x || y < range.y1 || range.y2 <= y) {
-      dirtyChunks[`${x},${y}`] = data
+      const name: ChunkName = `${x},${y}`
+      dirtyChunks[name] = data
       return
     }
-    socket.emit('chunk', strX, strY, data)
+    socket.emit('chunk', x + '', y + '', data)
   }
+
   emitter.on('chunk', updateChunk)
   socket.on('disconnecting', () => emitter.off('chunk', updateChunk))
 })
 
-const chunks: Record<ChunkName, Promise<Uint8ClampedArray>> = Object.create(null)
-
-const readChunk = <X extends bigint, Y extends bigint>(x: X, y: Y) => chunks[`${x},${y}`] = chunks[`${x},${y}`] || new Promise<Uint8ClampedArray>(resolve => {
-  const name: ChunkName<X, Y> = `${x},${y}`
-  emitter.once(name, resolve)
-
-  const returnChunk = (data: Uint8ClampedArray) => {
-    emitter.off(name, resolve)
-    resolve(data)
-  }
-  chunks[name]?.then(returnChunk) || fs.readFile(path.join(chunksDir, name)).catch(() => new Uint8ClampedArray(chunkByteLength)).then(v => returnChunk(new Uint8ClampedArray(v)))
+const rl = createInterface({
+  input: process.stdin,
+  output: process.stdout,
 })
 
-const writeQueue: Record<ChunkName, Uint8ClampedArray> = {}
-
-const writeChunk = <X extends bigint, Y extends bigint>(x: X, y: Y, data: Uint8ClampedArray) => {
-  if (data.length != chunkByteLength) throw new RangeError(`Chunk size is not matching (Expected ${chunkByteLength}, Received ${data.length})`)
-
-  const name: ChunkName<X, Y> = `${x},${y}`
-  chunks[name] = Promise.resolve(writeQueue[name] = data)
-  emitter.emit(name, data)
-}
-
-setInterval(() => {
-  for (const name in writeQueue) {
-    const data = writeQueue[name as ChunkName]
-    delete writeQueue[name as ChunkName]
-    fs.writeFile(path.join(chunksDir, name), data)
-  }
-}, 1000)
+rl.on('SIGINT', () => {
+  console.log('Gracefully shutting down')
+  server.close()
+  server.once('close', () => process.exit())
+})

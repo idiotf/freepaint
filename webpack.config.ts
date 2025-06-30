@@ -1,6 +1,7 @@
 import path from 'path'
 import type { Configuration } from 'webpack'
 import HtmlWebpackPlugin from 'html-webpack-plugin'
+import ESLintPlugin from 'eslint-webpack-plugin'
 
 const config: Configuration | Configuration[] = {
   mode: process.env.NODE_ENV as 'production' | 'development' | undefined || 'production',
@@ -17,8 +18,12 @@ const config: Configuration | Configuration[] = {
     rules: [
       {
         test: /\.tsx?$/i,
-        exclude: /node_modules/,
+        exclude: /node_modules|\.d\.ts$/,
         use: 'ts-loader',
+      },
+      {
+        test: /\.d\.ts$/,
+        loader: 'ignore-loader',
       },
       {
         test: /\.css$/i,
@@ -32,6 +37,7 @@ const config: Configuration | Configuration[] = {
   },
   plugins: [
     new HtmlWebpackPlugin({ title: 'Freepaint' }),
+    new ESLintPlugin,
   ],
 }
 
