@@ -1,8 +1,6 @@
 import path from 'path'
 import fs from 'fs/promises'
-// import { chunkByteLength } from '../const'
-
-const chunkByteLength = 16
+import { chunkByteLength } from '../const'
 
 export type ChunkName = `${bigint},${bigint}`
 
