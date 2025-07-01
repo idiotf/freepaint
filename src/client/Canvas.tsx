@@ -3,7 +3,8 @@ import ResizableCanvas from './ResizableCanvas'
 import { useObjectValue, useOffscreen, useSocket } from './hooks'
 import { CHUNK_SIZE, chunkByteLength } from '../const'
 import type { Socket } from 'socket.io-client'
-import type { ChunkName, Client2Server, Server2Client } from '../server'
+import type { ChunkName } from '../server/chunk'
+import type { Client2Server, Server2Client } from '../server'
 
 export const enum DrawMode {
   VIEW = 0,

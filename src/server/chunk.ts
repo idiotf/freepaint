@@ -4,7 +4,7 @@ import { chunkByteLength } from '../const'
 
 export type ChunkName = `${bigint},${bigint}`
 
-const chunksDir = process.env.CHUNKS_DIR || 'test/paint_chunks'
+const chunksDir = process.env.CHUNKS_DIR || 'paint_chunks'
 await fs.access(chunksDir).catch(() => fs.mkdir(chunksDir))
 
 const chunks: Record<ChunkName, Promise<Uint8ClampedArray>> = Object.create(null)
