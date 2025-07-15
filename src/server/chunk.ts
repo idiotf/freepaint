@@ -26,11 +26,11 @@ export async function writeChunk(x: bigint, y: bigint, data: Uint8ClampedArray, 
   if (data.length != chunkByteLength) throw new RangeError(`Chunk size is not matching (Expected ${chunkByteLength}, Received ${data.length})`)
 
   const name: ChunkName = `${x},${y}`
-  data = new Uint8ClampedArray(data)
   let promise: Promise<Uint8ClampedArray>, chunk: Uint8ClampedArray
   do {
     promise = readChunk(x, y)
-    chunk = await promise
+    // mergeChunk는 원본 배열의 값을 변경하므로, 반드시 복사가 필요하다.
+    chunk = new Uint8ClampedArray(await promise)
   } while (chunks[name] != promise)
 
   return chunks[name] = Promise.resolve(writeQueue[name] = mergeChunk(chunk, data, isErase))
@@ -39,24 +39,19 @@ export async function writeChunk(x: bigint, y: bigint, data: Uint8ClampedArray, 
 function mergeChunk(dst: Uint8ClampedArray, src: Uint8ClampedArray, isErase = false) {
   for (let i = 0; i < src.length; i += 4) {
     const r = i + 0, g = i + 1, b = i + 2, a = i + 3
-
+    const dstAlpha = dst[a] * (255 - src[a]) / 255
     if (isErase) {
-      src[r] = dst[r]
-      src[g] = dst[g]
-      src[b] = dst[b]
-      src[a] = dst[a] * (255 - src[a]) / 255
+      dst[a] = dstAlpha
     } else {
-      const dstAlpha = dst[a] * (255 - src[a]) / 255
       const alpha = src[a] + dstAlpha
-
-      src[r] = (src[r] * src[a] + dst[r] * dstAlpha) / alpha
-      src[g] = (src[g] * src[a] + dst[g] * dstAlpha) / alpha
-      src[b] = (src[b] * src[a] + dst[b] * dstAlpha) / alpha
-      src[a] = alpha
+      dst[r] = (src[r] * src[a] + dst[r] * dstAlpha) / alpha
+      dst[g] = (src[g] * src[a] + dst[g] * dstAlpha) / alpha
+      dst[b] = (src[b] * src[a] + dst[b] * dstAlpha) / alpha
+      dst[a] = alpha
     }
   }
 
-  return src
+  return dst
 }
 
 setInterval(() => {

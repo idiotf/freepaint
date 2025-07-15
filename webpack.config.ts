@@ -1,10 +1,9 @@
 import path from 'path'
 import type { Configuration } from 'webpack'
 import HtmlWebpackPlugin from 'html-webpack-plugin'
-import ESLintPlugin from 'eslint-webpack-plugin'
 
-const config: Configuration | Configuration[] = {
-  mode: process.env.NODE_ENV as 'production' | 'development' | undefined || 'production',
+const config: Configuration = {
+  mode: /*process.env.NODE_ENV as 'production' | 'development' | undefined || */'production',
   entry: './src/client/index.tsx',
   devtool: process.env.NODE_ENV == 'development' ? 'inline-source-map' : void 0,
   resolve: {
@@ -37,7 +36,6 @@ const config: Configuration | Configuration[] = {
   },
   plugins: [
     new HtmlWebpackPlugin({ title: 'Freepaint' }),
-    new ESLintPlugin,
   ],
 }
 

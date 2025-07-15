@@ -12,6 +12,12 @@
     "moduleResolution": "bundler",
     "verbatimModuleSyntax": true,
     "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "@client/*": ["./src/client/*"],
+      "@server/*": ["./src/server/*"],
+    },
 
     // Best practices
     "strict": true,
@@ -22,7 +28,8 @@
     // Some stricter flags (disabled by default)
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
+    "noPropertyAccessFromIndexSignature": false,
   },
-  "include": ["./src/*"],
+  "include": ["./src/**/*"],
+  "exclude": ["node_modules"],
 }
